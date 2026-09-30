@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Production build output
+dist/
+
+# Archives & Packages
+*.zip
+*.tar.gz
+
+# System files
+.DS_Store
+Thumbs.db

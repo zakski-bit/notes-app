@@ -1,0 +1,33 @@
+{
+  "name": "notes-app",
+  "version": "1.0.0",
+  "description": "Submission Integrasi Notes App dengan RESTful API - Dicoding Academy",
+  "main": "src/index.js",
+  "scripts": {
+    "start-dev": "webpack serve --config webpack.dev.js",
+    "build": "webpack --config webpack.prod.js",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "notes-app",
+    "dicoding",
+    "web-components",
+    "webpack",
+    "rest-api"
+  ],
+  "author": "Dicoding Student",
+  "license": "ISC",
+  "dependencies": {
+    "sweetalert2": "^11.14.0"
+  },
+  "devDependencies": {
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.0",
+    "prettier": "^3.3.3",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.1.0",
+    "webpack-merge": "^6.0.1"
+  }
+}

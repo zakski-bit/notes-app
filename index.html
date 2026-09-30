@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notes App - Integrasi RESTful API & Webpack</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Indikator Loading Global (Kriteria Wajib 5) -->
+    <loading-indicator></loading-indicator>
+
+    <!-- Header Aplikasi (Kriteria Wajib 1, 4 & Kriteria Opsional 3: Custom Attributes) -->
+    <app-bar
+      title="Notes App"
+      caption="Kelola ide dan catatan terintegrasi dengan RESTful API Dicoding"
+    ></app-bar>
+
+    <!-- Konten Utama Aplikasi -->
+    <main class="main-wrapper">
+      <!-- Formulir Tambah Catatan (Kriteria Wajib 1, 2 & Kriteria Opsional 2: Realtime Validation) -->
+      <note-input></note-input>
+
+      <!-- Daftar Catatan Berbasis CSS Grid & REST API (Kriteria Wajib 1, 2, 3, 4 & Kriteria Opsional 1) -->
+      <note-list></note-list>
+    </main>
+
+    <!-- Footer Aplikasi -->
+    <footer-bar></footer-bar>
+  </body>
+</html>
