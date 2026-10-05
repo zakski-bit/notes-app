@@ -4,6 +4,8 @@ Proyek Submission Akhir untuk kelas **Belajar Fundamental Front-End Web Developm
 
 Aplikasi pencatatan (Notes App) modern yang dibangun menggunakan **Vanilla JavaScript (Web Components)**, **CSS Grid Layout**, dibundel menggunakan **Webpack**, dan terintegrasi penuh dengan **RESTful API Dicoding**.
 
+🔗 **Live Demo:** [https://notes-appz.netlify.app/](https://notes-appz.netlify.app/)
+
 ---
 
 ## 📌 Pemenuhan Kriteria Submission
