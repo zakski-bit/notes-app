@@ -3,7 +3,8 @@ import NotesApi from '../api/notes-api';
 
 /**
  * Komponen Web Component: <note-item>
- * Menampilkan kartu catatan individual dengan custom attributes dan aksi API langsung.
+ * Menampilkan kartu catatan individual bergaya Syncscribe dengan pastel header,
+ * notebook lined body, dan action bar terintegrasi.
  */
 class NoteItem extends HTMLElement {
   constructor() {
@@ -50,20 +51,50 @@ class NoteItem extends HTMLElement {
     return div.innerHTML;
   }
 
-  _formatDate(dateString) {
+  _formatTime(dateString) {
+    if (!dateString) return '12:00 PM';
+    try {
+      const d = new Date(dateString);
+      return d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return '12:00 PM';
+    }
+  }
+
+  _formatFullDate(dateString) {
     if (!dateString) return '-';
     try {
       const options = {
         year: 'numeric',
-        month: 'long',
+        month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
       };
       return new Date(dateString).toLocaleDateString('id-ID', options);
     } catch {
       return dateString;
     }
+  }
+
+  _getThemeClass(id = '') {
+    // Generate deterministic pastel theme (1 dari 5 variasi Syncscribe)
+    const themes = [
+      'theme-lavender',
+      'theme-peach',
+      'theme-lime',
+      'theme-amber',
+      'theme-sky',
+    ];
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash << 5) - hash + id.charCodeAt(i);
+      hash |= 0;
+    }
+    const index = Math.abs(hash) % themes.length;
+    return themes[index];
   }
 
   render() {
@@ -87,42 +118,70 @@ class NoteItem extends HTMLElement {
 
     const safeTitle = this._escapeHtml(title);
     const safeBody = this._escapeHtml(body);
-    const formattedDate = this._formatDate(createdAt);
+    const formattedTime = this._formatTime(createdAt);
+    const formattedFullDate = this._formatFullDate(createdAt);
+    const themeClass = this._getThemeClass(id);
 
     this.innerHTML = `
-      <article class="note-card ${isArchived ? 'is-archived' : ''}" data-id="${id}">
-        <div class="note-card-header">
-          <h3 class="note-card-title" title="${safeTitle}">${safeTitle}</h3>
-          <span class="note-badge ${isArchived ? 'badge-archived' : 'badge-active'}">
-            ${isArchived ? 'Diarsipkan' : 'Aktif'}
+      <article class="sync-note-card ${themeClass} ${isArchived ? 'is-archived' : ''}" data-id="${id}">
+        <!-- Pastel Header Banner (Syncscribe Aesthetic) -->
+        <div class="sync-card-header">
+          <div class="sync-header-left">
+            <h3 class="sync-card-title" title="${safeTitle}">${safeTitle}</h3>
+          </div>
+          <div class="sync-header-right">
+            <span class="sync-card-time">${formattedTime}</span>
+            ${
+              isArchived
+                ? `<span class="sync-badge-archived" title="Diarsipkan">Arsip</span>`
+                : ''
+            }
+          </div>
+        </div>
+
+        <!-- Ruled Lined Notepad Body -->
+        <div class="sync-card-body">
+          <p class="sync-body-text">${safeBody}</p>
+        </div>
+
+        <!-- Card Footer Info & Actions -->
+        <div class="sync-card-footer">
+          <span class="sync-footer-date" title="Dibuat pada ${formattedFullDate}">
+            ${formattedFullDate}
           </span>
-        </div>
 
-        <time class="note-card-date" datetime="${createdAt}">
-          <svg viewBox="0 0 24 24" class="date-icon" aria-hidden="true">
-            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-          </svg>
-          <span>${formattedDate}</span>
-        </time>
+          <div class="sync-action-group">
+            <!-- Tombol Arsip / Unarchive -->
+            <button
+              type="button"
+              class="sync-btn-icon btn-archive"
+              title="${isArchived ? 'Kembalikan dari Arsip' : 'Pindahkan ke Arsip'}"
+              aria-label="${isArchived ? 'Kembalikan dari Arsip' : 'Pindahkan ke Arsip'}"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+              </svg>
+            </button>
 
-        <div class="note-card-body">
-          <p>${safeBody}</p>
-        </div>
+            <!-- Tombol Hapus -->
+            <button
+              type="button"
+              class="sync-btn-icon btn-delete"
+              title="Hapus Catatan"
+              aria-label="Hapus Catatan"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
 
-        <div class="note-card-actions">
-          <button type="button" class="btn-action btn-archive" title="${isArchived ? 'Pindahkan ke Aktif' : 'Arsipkan Catatan'}">
-            <svg viewBox="0 0 24 24" class="action-icon">
-              <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
-            </svg>
-            <span>${isArchived ? 'Batal Arsip' : 'Arsipkan'}</span>
-          </button>
-
-          <button type="button" class="btn-action btn-delete" title="Hapus Catatan">
-            <svg viewBox="0 0 24 24" class="action-icon">
-              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-            </svg>
-            <span>Hapus</span>
-          </button>
+            <!-- Lime Signature Pencil Badge -->
+            <div class="sync-pencil-badge" title="Catatan Aktif">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </div>
+          </div>
         </div>
       </article>
     `;
@@ -136,7 +195,8 @@ class NoteItem extends HTMLElement {
     const loadingIndicator = document.querySelector('loading-indicator');
 
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', async () => {
+      deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const title = this.getAttribute('title') || 'catatan ini';
 
         const result = await Swal.fire({
@@ -144,8 +204,8 @@ class NoteItem extends HTMLElement {
           html: `Apakah Anda yakin ingin menghapus catatan <strong>"${this._escapeHtml(title)}"</strong>? Tindakan ini tidak dapat dibatalkan.`,
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonColor: '#e11d48',
-          cancelButtonColor: '#64748b',
+          confirmButtonColor: '#0f172a',
+          cancelButtonColor: '#94a3b8',
           confirmButtonText: 'Ya, Hapus!',
           cancelButtonText: 'Batal',
         });
@@ -179,7 +239,7 @@ class NoteItem extends HTMLElement {
               text:
                 error.message ||
                 'Terjadi kesalahan saat menghapus catatan dari server.',
-              confirmButtonColor: '#4f46e5',
+              confirmButtonColor: '#0f172a',
             });
           } finally {
             if (loadingIndicator) {
@@ -191,7 +251,8 @@ class NoteItem extends HTMLElement {
     }
 
     if (archiveBtn) {
-      archiveBtn.addEventListener('click', async () => {
+      archiveBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         try {
           if (loadingIndicator) {
             loadingIndicator.show(
@@ -230,7 +291,7 @@ class NoteItem extends HTMLElement {
             text:
               error.message ||
               'Terjadi kendala saat memperbarui status arsip di server.',
-            confirmButtonColor: '#4f46e5',
+            confirmButtonColor: '#0f172a',
           });
         } finally {
           if (loadingIndicator) {
