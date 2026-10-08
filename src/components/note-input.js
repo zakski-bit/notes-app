@@ -3,8 +3,8 @@ import NotesApi from '../api/notes-api';
 
 /**
  * Komponen Web Component: <note-input>
- * Menangani formulir tambah catatan dengan Realtime Validation dan integrasi RESTful API.
- * Desain modern minimalis selaras dengan estetika Syncscribe.
+ * Menangani formulir tambah catatan dengan Realtime Validation,
+ * pemilih folder / kategori dinamis, dan integrasi RESTful API.
  */
 class NoteInput extends HTMLElement {
   constructor() {
@@ -12,12 +12,42 @@ class NoteInput extends HTMLElement {
     this._maxTitleLength = 50;
     this._minBodyLength = 5;
     this._isOpen = false;
+    this._selectedFolder = 'General';
+    this._folders = this._loadFolders();
   }
 
   connectedCallback() {
     this.render();
     this._initElements();
     this._setupEventListeners();
+
+    // Listen to folders updated from sidebar
+    document.addEventListener('folders-updated', (e) => {
+      if (e.detail && e.detail.folders) {
+        this._folders = e.detail.folders;
+        this._renderFolderPills();
+      }
+    });
+  }
+
+  _loadFolders() {
+    const saved = localStorage.getItem('syncscribe_folders');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback default
+      }
+    }
+    return [
+      'Bucket List',
+      'Finances',
+      'Travel Plans',
+      'Shopping',
+      'Personal',
+      'Work',
+      'Projects',
+    ];
   }
 
   render() {
@@ -44,6 +74,17 @@ class NoteInput extends HTMLElement {
         </div>
 
         <form id="addNoteForm" class="note-form ${this._isOpen ? 'form-expanded' : 'form-collapsed'}" novalidate>
+          <!-- Pemilih Folder / Kategori -->
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label class="form-label">Pilih Folder / Kategori</label>
+              <span class="folder-selected-hint" id="folderSelectedHint">Folder: <strong>${this._selectedFolder}</strong></span>
+            </div>
+            <div class="folder-pill-selector" id="folderPillSelector">
+              <!-- Render pills dinamis -->
+            </div>
+          </div>
+
           <!-- Input Judul -->
           <div class="form-group">
             <div class="label-wrapper">
@@ -54,7 +95,7 @@ class NoteInput extends HTMLElement {
               type="text"
               id="noteTitle"
               class="form-control"
-              placeholder="Contoh: Belajar Webpack & Web Components"
+              placeholder="Contoh: Rencana Belajar Webpack & Web Components"
               maxlength="${this._maxTitleLength}"
               required
               autocomplete="off"
@@ -93,6 +134,43 @@ class NoteInput extends HTMLElement {
         </form>
       </section>
     `;
+
+    this._renderFolderPills();
+  }
+
+  _renderFolderPills() {
+    const container = this.querySelector('#folderPillSelector');
+    if (!container) return;
+
+    const allOptions = ['General', ...this._folders];
+    const uniqueOptions = Array.from(new Set(allOptions));
+
+    container.innerHTML = uniqueOptions
+      .map(
+        (folder) => `
+        <button
+          type="button"
+          class="folder-chip ${folder === this._selectedFolder ? 'active' : ''}"
+          data-folder="${folder}"
+        >
+          📁 ${folder}
+        </button>
+      `
+      )
+      .join('');
+
+    const chips = container.querySelectorAll('.folder-chip');
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        chips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        this._selectedFolder = chip.getAttribute('data-folder');
+        const hint = this.querySelector('#folderSelectedHint');
+        if (hint) {
+          hint.innerHTML = `Folder: <strong>${this._selectedFolder}</strong>`;
+        }
+      });
+    });
   }
 
   _initElements() {
@@ -113,8 +191,17 @@ class NoteInput extends HTMLElement {
     this._submitBtn = this.querySelector('#submitBtn');
   }
 
-  setOpen(open) {
+  setOpen(open, preselectedFolder = null) {
     this._isOpen = open;
+    if (preselectedFolder) {
+      this._selectedFolder = preselectedFolder;
+      this._renderFolderPills();
+      const hint = this.querySelector('#folderSelectedHint');
+      if (hint) {
+        hint.innerHTML = `Folder: <strong>${this._selectedFolder}</strong>`;
+      }
+    }
+
     if (this._container && this._form) {
       if (this._isOpen) {
         this._container.classList.add('is-open');
@@ -133,7 +220,6 @@ class NoteInput extends HTMLElement {
   }
 
   _setupEventListeners() {
-    // Toggle buka tutup form
     if (this._toggleBtn) {
       this._toggleBtn.addEventListener('click', () => {
         this.setOpen(!this._isOpen);
@@ -150,16 +236,17 @@ class NoteInput extends HTMLElement {
       });
     }
 
-    // Mendengarkan trigger custom event dari sidebar 'Create Note' (⌘N)
-    document.addEventListener('focus-create-note', () => {
-      this.setOpen(true);
+    // Mendengarkan custom event focus-create-note
+    document.addEventListener('focus-create-note', (e) => {
+      const folder = e.detail && e.detail.folder;
+      this.setOpen(true, folder);
       if (this._titleInput) {
         this._container.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setTimeout(() => this._titleInput.focus(), 250);
       }
     });
 
-    // Realtime validation untuk judul
+    // Realtime validation
     this._titleInput.addEventListener('input', () => {
       this._validateTitle();
     });
@@ -168,7 +255,6 @@ class NoteInput extends HTMLElement {
       this._validateTitle(true);
     });
 
-    // Realtime validation untuk isi catatan
     this._bodyInput.addEventListener('input', () => {
       this._validateBody();
     });
@@ -177,7 +263,7 @@ class NoteInput extends HTMLElement {
       this._validateBody(true);
     });
 
-    // Handle submit formulir
+    // Handle form submit
     this._form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const isTitleValid = this._validateTitle(true);
@@ -189,8 +275,15 @@ class NoteInput extends HTMLElement {
         return;
       }
 
+      // Format judul dengan tag folder jika bukan 'General'
+      const rawTitle = this._titleInput.value.trim();
+      const finalTitle =
+        this._selectedFolder && this._selectedFolder !== 'General'
+          ? `[${this._selectedFolder}] ${rawTitle}`
+          : rawTitle;
+
       const noteData = {
-        title: this._titleInput.value.trim(),
+        title: finalTitle,
         body: this._bodyInput.value.trim(),
       };
 
@@ -210,7 +303,7 @@ class NoteInput extends HTMLElement {
         Swal.fire({
           icon: 'success',
           title: 'Berhasil Disimpan!',
-          text: 'Catatan baru Anda berhasil tersimpan di server.',
+          text: `Catatan berhasil disimpan ke folder ${this._selectedFolder}.`,
           timer: 1600,
           showConfirmButton: false,
         });
@@ -312,6 +405,8 @@ class NoteInput extends HTMLElement {
     this._titleCounter.textContent = `Sisa karakter: ${this._maxTitleLength}`;
     this._titleCounter.className = 'char-counter';
     this._bodyCounter.textContent = `0 karakter (min. ${this._minBodyLength})`;
+    this._selectedFolder = 'General';
+    this._renderFolderPills();
   }
 }
 

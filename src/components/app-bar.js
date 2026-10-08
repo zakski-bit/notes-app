@@ -1,11 +1,18 @@
+import Swal from 'sweetalert2';
+
 /**
  * Komponen Web Component: <app-bar>
- * Sidebar navigasi bergaya modern (Syncscribe aesthetic) dengan Shadow DOM & Custom Attributes.
+ * Sidebar navigasi interaktif bergaya Syncscribe dengan Shadow DOM,
+ * Custom Attributes, manajemen folder dinamis, dan sinkronisasi status.
  */
 class AppBar extends HTMLElement {
   constructor() {
     super();
     this._shadowRoot = this.attachShadow({ mode: 'open' });
+    this._folders = this._loadFolders();
+    this._userName = localStorage.getItem('syncscribe_user') || 'Meet Desai';
+    this._workspaceName =
+      localStorage.getItem('syncscribe_workspace') || 'Syncscribe';
   }
 
   static get observedAttributes() {
@@ -22,14 +29,53 @@ class AppBar extends HTMLElement {
   connectedCallback() {
     this.render();
     this._setupEvents();
+
+    // Listen to tab changes from note-list to keep sidebar in sync
+    document.addEventListener('active-tab-changed', (e) => {
+      const activeTab = e.detail && e.detail.tab;
+      this._updateActiveNav(activeTab);
+    });
+
+    // Listen to note-list requests to reset active folder selection
+    document.addEventListener('folder-filter-cleared', () => {
+      const folderItems = this._shadowRoot.querySelectorAll('.folder-item');
+      folderItems.forEach((f) => f.classList.remove('active'));
+    });
+  }
+
+  _loadFolders() {
+    const saved = localStorage.getItem('syncscribe_folders');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback default
+      }
+    }
+    return [
+      'Bucket List',
+      'Finances',
+      'Travel Plans',
+      'Shopping',
+      'Personal',
+      'Work',
+      'Projects',
+    ];
+  }
+
+  _saveFolders() {
+    localStorage.setItem('syncscribe_folders', JSON.stringify(this._folders));
+    document.dispatchEvent(
+      new CustomEvent('folders-updated', { detail: { folders: this._folders } })
+    );
   }
 
   get title() {
-    return this.getAttribute('title') || 'Syncscribe';
+    return this._workspaceName || this.getAttribute('title') || 'Syncscribe';
   }
 
   get user() {
-    return this.getAttribute('user') || 'Personal Workspace';
+    return this._userName || this.getAttribute('user') || 'Meet Desai';
   }
 
   get caption() {
@@ -37,6 +83,22 @@ class AppBar extends HTMLElement {
   }
 
   render() {
+    const folderListHtml = this._folders
+      .map(
+        (folder) => `
+        <li class="folder-item" data-tag="${folder}">
+          <div class="folder-item-left">
+            <span class="folder-bullet"></span>
+            <span class="folder-text">${folder}</span>
+          </div>
+          <button type="button" class="btn-delete-folder" data-delete-folder="${folder}" title="Hapus folder ${folder}">
+            &times;
+          </button>
+        </li>
+      `
+      )
+      .join('');
+
     this._shadowRoot.innerHTML = `
       <style>
         :host {
@@ -64,14 +126,21 @@ class AppBar extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.25rem 0.35rem 0.75rem;
+          padding: 0.35rem 0.5rem 0.65rem;
           cursor: pointer;
+          border-radius: 14px;
+          transition: background-color 0.15s ease;
+        }
+
+        .profile-section:hover {
+          background-color: #f1f4f9;
         }
 
         .profile-left {
           display: flex;
           align-items: center;
           gap: 0.85rem;
+          overflow: hidden;
         }
 
         .brand-logo {
@@ -88,7 +157,7 @@ class AppBar extends HTMLElement {
           transition: transform 0.2s ease;
         }
 
-        .brand-logo:hover {
+        .profile-section:hover .brand-logo {
           transform: scale(1.05);
         }
 
@@ -98,6 +167,10 @@ class AppBar extends HTMLElement {
           fill: currentColor;
         }
 
+        .profile-info {
+          overflow: hidden;
+        }
+
         .profile-info h1 {
           font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
           font-size: 1.05rem;
@@ -105,6 +178,9 @@ class AppBar extends HTMLElement {
           color: #0f172a;
           letter-spacing: -0.015em;
           line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .profile-info p {
@@ -113,12 +189,16 @@ class AppBar extends HTMLElement {
           color: #8392a5;
           margin-top: 0.15rem;
           font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .chevron-icon {
           color: #94a3b8;
           width: 18px;
           height: 18px;
+          flex-shrink: 0;
         }
 
         /* Create Note Button (Black pill with shortcut) */
@@ -205,6 +285,7 @@ class AppBar extends HTMLElement {
         .nav-item.active {
           background-color: #f1f4f9;
           color: #0f172a;
+          font-weight: 700;
         }
 
         .nav-item-left {
@@ -227,6 +308,12 @@ class AppBar extends HTMLElement {
         }
 
         /* Folders Section */
+        .folders-container {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+        }
+
         .folders-header {
           display: flex;
           align-items: center;
@@ -236,7 +323,6 @@ class AppBar extends HTMLElement {
           font-size: 0.82rem;
           font-weight: 700;
           color: #334155;
-          text-transform: capitalize;
         }
 
         .folders-header-left {
@@ -245,18 +331,48 @@ class AppBar extends HTMLElement {
           gap: 0.5rem;
         }
 
+        .folders-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .btn-add-folder {
+          width: 22px;
+          height: 22px;
+          border-radius: 6px;
+          background-color: transparent;
+          border: 1px solid transparent;
+          color: #64748b;
+          font-size: 1.1rem;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .btn-add-folder:hover {
+          background-color: #e2e8f0;
+          color: #0f172a;
+        }
+
         .folder-list {
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
           list-style: none;
-          margin-top: 0.25rem;
+          margin-top: 0.35rem;
+          max-height: 220px;
+          overflow-y: auto;
+          padding-right: 0.25rem;
         }
 
         .folder-item {
           display: flex;
           align-items: center;
-          gap: 0.65rem;
+          justify-content: space-between;
           padding: 0.5rem 0.85rem;
           border-radius: 10px;
           color: #64748b;
@@ -265,6 +381,41 @@ class AppBar extends HTMLElement {
           font-weight: 500;
           cursor: pointer;
           transition: all 0.15s ease;
+          position: relative;
+        }
+
+        .folder-item-left {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          overflow: hidden;
+        }
+
+        .folder-text {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .btn-delete-folder {
+          opacity: 0;
+          background: transparent;
+          border: none;
+          color: #94a3b8;
+          font-size: 1.1rem;
+          cursor: pointer;
+          padding: 0 4px;
+          border-radius: 4px;
+          transition: all 0.15s ease;
+        }
+
+        .folder-item:hover .btn-delete-folder {
+          opacity: 1;
+        }
+
+        .btn-delete-folder:hover {
+          color: #ef4444;
+          background-color: #fee2e2;
         }
 
         .folder-item:hover {
@@ -284,9 +435,11 @@ class AppBar extends HTMLElement {
           height: 7px;
           border-radius: 50%;
           background-color: #cbd5e1;
+          flex-shrink: 0;
         }
 
-        .folder-item:hover .folder-bullet {
+        .folder-item:hover .folder-bullet,
+        .folder-item.active .folder-bullet {
           background-color: #cbf53d;
         }
 
@@ -339,11 +492,7 @@ class AppBar extends HTMLElement {
             gap: 1rem;
           }
 
-          .folder-list, .bottom-utils {
-            display: none;
-          }
-
-          .folders-header {
+          .folder-list, .bottom-utils, .folders-header {
             display: none;
           }
 
@@ -364,8 +513,8 @@ class AppBar extends HTMLElement {
         }
       </style>
 
-      <!-- Profile / Brand -->
-      <div class="profile-section" id="profileSection" title="Status RESTful API Dicoding">
+      <!-- Profile / Brand (Clickable to Edit) -->
+      <div class="profile-section" id="profileSection" title="Klik untuk mengubah nama workspace & user">
         <div class="profile-left">
           <div class="brand-logo" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -373,8 +522,8 @@ class AppBar extends HTMLElement {
             </svg>
           </div>
           <div class="profile-info">
-            <h1>${this.title}</h1>
-            <p>${this.user}</p>
+            <h1 id="txtTitle">${this.title}</h1>
+            <p id="txtUser">${this.user}</p>
           </div>
         </div>
         <svg class="chevron-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -426,7 +575,7 @@ class AppBar extends HTMLElement {
       </nav>
 
       <!-- Folders Section -->
-      <div>
+      <div class="folders-container">
         <div class="folders-header">
           <div class="folders-header-left">
             <svg viewBox="0 0 24 24" style="width: 17px; height: 17px; fill: #64748b;">
@@ -434,34 +583,15 @@ class AppBar extends HTMLElement {
             </svg>
             <span>Folders</span>
           </div>
-          <span style="font-size: 1rem; color: #94a3b8; cursor: pointer;">+</span>
+          <div class="folders-header-actions">
+            <button type="button" class="btn-add-folder" id="btnAddFolder" title="Tambah folder baru">
+              +
+            </button>
+          </div>
         </div>
 
-        <ul class="folder-list">
-          <li class="folder-item" data-tag="Meeting">
-            <span class="folder-bullet"></span>
-            <span>Meeting</span>
-          </li>
-          <li class="folder-item" data-tag="Goals">
-            <span class="folder-bullet"></span>
-            <span>Personal Goals</span>
-          </li>
-          <li class="folder-item" data-tag="Recipe">
-            <span class="folder-bullet"></span>
-            <span>Recipe & Food</span>
-          </li>
-          <li class="folder-item" data-tag="Shopping">
-            <span class="folder-bullet"></span>
-            <span>Shopping List</span>
-          </li>
-          <li class="folder-item" data-tag="Workout">
-            <span class="folder-bullet"></span>
-            <span>Workout</span>
-          </li>
-          <li class="folder-item" data-tag="Projects">
-            <span class="folder-bullet"></span>
-            <span>Projects</span>
-          </li>
+        <ul class="folder-list" id="folderList">
+          ${folderListHtml}
         </ul>
       </div>
 
@@ -484,7 +614,76 @@ class AppBar extends HTMLElement {
     `;
   }
 
+  _updateActiveNav(activeTab) {
+    const navItems = this._shadowRoot.querySelectorAll('.nav-item');
+    navItems.forEach((btn) => btn.classList.remove('active'));
+    if (activeTab === 'archived') {
+      const archBtn = this._shadowRoot.querySelector(
+        '.nav-item[data-action="archive"]'
+      );
+      if (archBtn) archBtn.classList.add('active');
+    } else {
+      const allBtn = this._shadowRoot.querySelector(
+        '.nav-item[data-action="all"]'
+      );
+      if (allBtn) allBtn.classList.add('active');
+    }
+  }
+
   _setupEvents() {
+    // 1. Profile section click -> Edit Workspace & User Profile
+    const profileSection = this._shadowRoot.querySelector('#profileSection');
+    if (profileSection) {
+      profileSection.addEventListener('click', async () => {
+        const { value: formValues } = await Swal.fire({
+          title: 'Ubah Profil Workspace',
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 0.85rem; text-align: left; font-size: 0.9rem;">
+              <label><strong>Nama Workspace / Aplikasi:</strong></label>
+              <input id="swalWorkspace" class="swal2-input" style="margin: 0;" placeholder="Contoh: Syncscribe, My Workspace" value="${this.title}" />
+              <label style="margin-top: 0.5rem;"><strong>Nama Pengguna:</strong></label>
+              <input id="swalUser" class="swal2-input" style="margin: 0;" placeholder="Contoh: Meet Desai, Zaki" value="${this.user}" />
+            </div>
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonColor: '#0f172a',
+          cancelButtonColor: '#94a3b8',
+          confirmButtonText: 'Simpan',
+          cancelButtonText: 'Batal',
+          preConfirm: () => {
+            const workspace = document
+              .getElementById('swalWorkspace')
+              .value.trim();
+            const user = document.getElementById('swalUser').value.trim();
+            if (!workspace || !user) {
+              Swal.showValidationMessage(
+                'Nama dan Workspace tidak boleh kosong!'
+              );
+              return false;
+            }
+            return { workspace, user };
+          },
+        });
+
+        if (formValues) {
+          this._workspaceName = formValues.workspace;
+          this._userName = formValues.user;
+          localStorage.setItem('syncscribe_workspace', this._workspaceName);
+          localStorage.setItem('syncscribe_user', this._userName);
+          this.render();
+          this._setupEvents();
+          Swal.fire({
+            icon: 'success',
+            title: 'Profil Diperbarui!',
+            timer: 1300,
+            showConfirmButton: false,
+          });
+        }
+      });
+    }
+
+    // 2. Button Create Note
     const btnCreate = this._shadowRoot.querySelector('#btnCreateNote');
     if (btnCreate) {
       btnCreate.addEventListener('click', () => {
@@ -492,8 +691,14 @@ class AppBar extends HTMLElement {
       });
     }
 
-    // Keyboard shortcut handler (⌘N or Alt+N, ⌘S or Alt+S, ⌘R or Alt+R)
+    // 3. Global Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
+      // Don't trigger shortcuts if user is typing in input or textarea
+      const activeTag = document.activeElement
+        ? document.activeElement.tagName.toLowerCase()
+        : '';
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
       if ((e.ctrlKey || e.metaKey || e.altKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         document.dispatchEvent(new CustomEvent('focus-create-note'));
@@ -510,6 +715,7 @@ class AppBar extends HTMLElement {
       }
     });
 
+    // 4. Nav Items
     const navItems = this._shadowRoot.querySelectorAll('.nav-item');
     navItems.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -530,18 +736,108 @@ class AppBar extends HTMLElement {
       });
     });
 
+    // 5. Button Add Folder (+)
+    const btnAddFolder = this._shadowRoot.querySelector('#btnAddFolder');
+    if (btnAddFolder) {
+      btnAddFolder.addEventListener('click', async () => {
+        const { value: folderName } = await Swal.fire({
+          title: 'Tambah Folder Baru',
+          input: 'text',
+          inputPlaceholder: 'Contoh: Kuliah, Ide Konten, Buku...',
+          showCancelButton: true,
+          confirmButtonColor: '#0f172a',
+          cancelButtonColor: '#94a3b8',
+          confirmButtonText: 'Tambah Folder',
+          cancelButtonText: 'Batal',
+          inputValidator: (value) => {
+            if (!value || !value.trim()) {
+              return 'Nama folder tidak boleh kosong!';
+            }
+            if (
+              this._folders.some(
+                (f) => f.toLowerCase() === value.trim().toLowerCase()
+              )
+            ) {
+              return 'Folder dengan nama ini sudah ada!';
+            }
+            return null;
+          },
+        });
+
+        if (folderName) {
+          const trimmed = folderName.trim();
+          this._folders.push(trimmed);
+          this._saveFolders();
+          this.render();
+          this._setupEvents();
+
+          Swal.fire({
+            icon: 'success',
+            title: `Folder "${trimmed}" Ditambahkan!`,
+            timer: 1400,
+            showConfirmButton: false,
+          });
+
+          // Otomatis filter ke folder yang baru dibuat
+          document.dispatchEvent(
+            new CustomEvent('filter-by-folder', { detail: { tag: trimmed } })
+          );
+        }
+      });
+    }
+
+    // 6. Folder Items Click (Filter & Delete)
     const folderItems = this._shadowRoot.querySelectorAll('.folder-item');
     folderItems.forEach((item) => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        // Abaikan jika yang diklik tombol delete folder
+        if (e.target.closest('.btn-delete-folder')) return;
+
+        const isCurrentlyActive = item.classList.contains('active');
         folderItems.forEach((f) => f.classList.remove('active'));
-        item.classList.add('active');
-        const tag = item.getAttribute('data-tag');
-        document.dispatchEvent(
-          new CustomEvent('filter-by-folder', { detail: { tag } })
-        );
+
+        if (isCurrentlyActive) {
+          // Toggle off
+          document.dispatchEvent(new CustomEvent('folder-filter-cleared'));
+        } else {
+          item.classList.add('active');
+          const tag = item.getAttribute('data-tag');
+          document.dispatchEvent(
+            new CustomEvent('filter-by-folder', { detail: { tag } })
+          );
+        }
       });
     });
 
+    // 7. Delete Folder Buttons
+    const deleteFolderBtns =
+      this._shadowRoot.querySelectorAll('.btn-delete-folder');
+    deleteFolderBtns.forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const folderToDelete = btn.getAttribute('data-delete-folder');
+        const confirmResult = await Swal.fire({
+          title: `Hapus Folder "${folderToDelete}"?`,
+          text: 'Folder ini akan dihapus dari daftar menu.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#ef4444',
+          cancelButtonColor: '#94a3b8',
+          confirmButtonText: 'Ya, Hapus',
+          cancelButtonText: 'Batal',
+        });
+
+        if (confirmResult.isConfirmed) {
+          this._folders = this._folders.filter((f) => f !== folderToDelete);
+          this._saveFolders();
+          this.render();
+          this._setupEvents();
+          document.dispatchEvent(new CustomEvent('folder-filter-cleared'));
+        }
+      });
+    });
+
+    // 8. Help & Settings Modals
     const btnApiHelp = this._shadowRoot.querySelector('#btnApiHelp');
     if (btnApiHelp) {
       btnApiHelp.addEventListener('click', () => {

@@ -230,6 +230,44 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.folder-pill-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.folder-chip {
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--slate-50);
+  border: 1.5px solid var(--border-subtle);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--slate-600);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.folder-chip:hover {
+  background-color: var(--slate-100);
+  color: var(--slate-900);
+  border-color: var(--slate-300);
+}
+
+.folder-chip.active {
+  background-color: var(--slate-900);
+  color: #ffffff;
+  border-color: var(--slate-900);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+
+.folder-selected-hint {
+  font-size: 0.78rem;
+  color: var(--slate-500);
+}
+
 .label-wrapper {
   display: flex;
   justify-content: space-between;
@@ -446,6 +484,25 @@ body {
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
 }
 
+.btn-clear-search {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 1.15rem;
+  color: var(--slate-400);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.btn-clear-search:hover {
+  color: var(--slate-700);
+}
+
 /* Segmented Tab Controls */
 .sync-segmented-tabs {
   display: inline-flex;
@@ -490,6 +547,21 @@ body {
   margin-bottom: 1.25rem;
   font-size: 0.84rem;
   color: var(--slate-700);
+}
+
+.filter-notice-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.folder-badge-counter {
+  background: var(--slate-200);
+  color: var(--slate-700);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
 }
 
 .btn-clear-filter {
@@ -573,6 +645,23 @@ note-item {
 .sync-header-left {
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sync-folder-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  margin-bottom: 0.25rem;
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sync-card-title {
@@ -643,6 +732,12 @@ note-item {
     #f4f6fa 28px
   );
   line-height: 28px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.sync-card-body:hover {
+  background-color: #fafbfc;
 }
 
 .sync-body-text {
@@ -706,7 +801,7 @@ note-item {
   color: var(--rose-600);
 }
 
-/* Lime Signature Pencil Badge */
+/* Lime Signature Pencil Badge (Interactive Button) */
 .sync-pencil-badge {
   width: 28px;
   height: 28px;
@@ -718,6 +813,16 @@ note-item {
   justify-content: center;
   box-shadow: 0 2px 6px var(--accent-lime-shadow);
   flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.sync-pencil-badge:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 10px var(--accent-lime-shadow);
 }
 
 .sync-pencil-badge svg {
@@ -768,6 +873,26 @@ note-item {
   color: var(--slate-400);
   margin-top: 0.25rem;
   max-width: 380px;
+}
+
+.btn-create-in-folder {
+  margin-top: 1.25rem;
+  background-color: var(--slate-900);
+  color: #ffffff;
+  border: none;
+  padding: 0.7rem 1.4rem;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+  transition: all var(--transition-fast);
+}
+
+.btn-create-in-folder:hover {
+  background-color: var(--slate-800);
+  transform: translateY(-2px);
 }
 
 /* ==========================================================================
@@ -854,6 +979,13 @@ note-item {
   font-weight: 600;
   color: var(--slate-600);
   white-space: nowrap;
+}
+
+.folder-count-badge {
+  font-size: 0.7rem;
+  color: var(--slate-400);
+  font-weight: 500;
+  margin-top: -0.35rem;
 }
 
 .sync-folder-card:hover .folder-label {

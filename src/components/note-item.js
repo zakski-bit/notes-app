@@ -4,7 +4,7 @@ import NotesApi from '../api/notes-api';
 /**
  * Komponen Web Component: <note-item>
  * Menampilkan kartu catatan individual bergaya Syncscribe dengan pastel header,
- * notebook lined body, dan action bar terintegrasi.
+ * ekstraksi folder/kategori otomatis, notebook lined body, dan modal baca/detail interaktif.
  */
 class NoteItem extends HTMLElement {
   constructor() {
@@ -79,8 +79,21 @@ class NoteItem extends HTMLElement {
     }
   }
 
-  _getThemeClass(id = '') {
-    // Generate deterministic pastel theme (1 dari 5 variasi Syncscribe)
+  _parseFolder(title = '') {
+    const match = title.match(/^\[(.*?)\]\s*(.*)/);
+    if (match) {
+      return {
+        folder: match[1],
+        cleanTitle: match[2] || 'Tanpa Judul',
+      };
+    }
+    return {
+      folder: null,
+      cleanTitle: title || 'Tanpa Judul',
+    };
+  }
+
+  _getThemeClass(id = '', folder = '') {
     const themes = [
       'theme-lavender',
       'theme-peach',
@@ -88,9 +101,10 @@ class NoteItem extends HTMLElement {
       'theme-amber',
       'theme-sky',
     ];
+    let str = (id || '') + (folder || '');
     let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = (hash << 5) - hash + id.charCodeAt(i);
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
       hash |= 0;
     }
     const index = Math.abs(hash) % themes.length;
@@ -102,7 +116,7 @@ class NoteItem extends HTMLElement {
       this.getAttribute('note-id') ||
       (this._noteData && this._noteData.id) ||
       '';
-    const title =
+    const rawTitle =
       this.getAttribute('title') ||
       (this._noteData && this._noteData.title) ||
       'Tanpa Judul';
@@ -116,17 +130,23 @@ class NoteItem extends HTMLElement {
       '';
     const isArchived = this.getAttribute('archived') === 'true';
 
-    const safeTitle = this._escapeHtml(title);
+    const { folder, cleanTitle } = this._parseFolder(rawTitle);
+    const safeTitle = this._escapeHtml(cleanTitle);
     const safeBody = this._escapeHtml(body);
     const formattedTime = this._formatTime(createdAt);
     const formattedFullDate = this._formatFullDate(createdAt);
-    const themeClass = this._getThemeClass(id);
+    const themeClass = this._getThemeClass(id, folder);
 
     this.innerHTML = `
       <article class="sync-note-card ${themeClass} ${isArchived ? 'is-archived' : ''}" data-id="${id}">
         <!-- Pastel Header Banner (Syncscribe Aesthetic) -->
         <div class="sync-card-header">
           <div class="sync-header-left">
+            ${
+              folder
+                ? `<span class="sync-folder-tag" title="Folder: ${folder}">📁 ${this._escapeHtml(folder)}</span>`
+                : ''
+            }
             <h3 class="sync-card-title" title="${safeTitle}">${safeTitle}</h3>
           </div>
           <div class="sync-header-right">
@@ -139,8 +159,8 @@ class NoteItem extends HTMLElement {
           </div>
         </div>
 
-        <!-- Ruled Lined Notepad Body -->
-        <div class="sync-card-body">
+        <!-- Ruled Lined Notepad Body (Clickable to open full detail) -->
+        <div class="sync-card-body" title="Klik untuk membuka detail catatan">
           <p class="sync-body-text">${safeBody}</p>
         </div>
 
@@ -175,12 +195,17 @@ class NoteItem extends HTMLElement {
               </svg>
             </button>
 
-            <!-- Lime Signature Pencil Badge -->
-            <div class="sync-pencil-badge" title="Catatan Aktif">
+            <!-- Lime Signature Pencil Badge (Interactive Quick View / Detail Button) -->
+            <button
+              type="button"
+              class="sync-pencil-badge btn-detail-note"
+              title="Buka detail & opsi catatan"
+              aria-label="Buka detail catatan"
+            >
               <svg viewBox="0 0 24 24">
                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
               </svg>
-            </div>
+            </button>
           </div>
         </div>
       </article>
@@ -192,19 +217,116 @@ class NoteItem extends HTMLElement {
     const isArchived = this.getAttribute('archived') === 'true';
     const deleteBtn = this.querySelector('.btn-delete');
     const archiveBtn = this.querySelector('.btn-archive');
+    const detailBtn = this.querySelector('.btn-detail-note');
+    const cardBody = this.querySelector('.sync-card-body');
+    const cardHeader = this.querySelector('.sync-card-header');
     const loadingIndicator = document.querySelector('loading-indicator');
 
+    // Handler Buka Modal Detail Catatan
+    const openDetailModal = () => {
+      const rawTitle =
+        this.getAttribute('title') ||
+        (this._noteData && this._noteData.title) ||
+        'Tanpa Judul';
+      const body =
+        (this._noteData && this._noteData.body) ||
+        this.getAttribute('body') ||
+        '';
+      const createdAt =
+        this.getAttribute('created-at') ||
+        (this._noteData && this._noteData.createdAt) ||
+        '';
+      const isArchivedNow = this.getAttribute('archived') === 'true';
+      const { folder, cleanTitle } = this._parseFolder(rawTitle);
+
+      Swal.fire({
+        title: cleanTitle,
+        html: `
+          <div style="text-align: left; font-size: 0.92rem; line-height: 1.6; color: #334155;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap;">
+              ${
+                folder
+                  ? `<span style="background: #f1f5f9; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; font-size: 0.8rem; color: #0f172a;">📁 ${this._escapeHtml(folder)}</span>`
+                  : ''
+              }
+              <span style="background: ${isArchivedNow ? '#fee2e2' : '#ecfdf5'}; color: ${isArchivedNow ? '#991b1b' : '#065f46'}; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; font-size: 0.8rem;">
+                ${isArchivedNow ? 'Diarsipkan' : 'Aktif'}
+              </span>
+              <span style="color: #94a3b8; font-size: 0.8rem; margin-left: auto;">
+                ${this._formatFullDate(createdAt)} &bull; ${this._formatTime(createdAt)}
+              </span>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.1rem; max-height: 260px; overflow-y: auto; white-space: pre-line; word-break: break-word;">
+              ${this._escapeHtml(body)}
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonColor: '#0f172a',
+        denyButtonColor: isArchivedNow ? '#3b82f6' : '#64748b',
+        cancelButtonColor: '#cbd5e1',
+        confirmButtonText: '📋 Salin Isi Catatan',
+        denyButtonText: isArchivedNow ? '📦 Batal Arsip' : '📦 Arsipkan',
+        cancelButtonText: 'Tutup',
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          // Salin ke clipboard
+          try {
+            await navigator.clipboard.writeText(`${cleanTitle}\n\n${body}`);
+            Swal.fire({
+              icon: 'success',
+              title: 'Tersalin ke Clipboard!',
+              timer: 1400,
+              showConfirmButton: false,
+            });
+          } catch {
+            Swal.fire({
+              icon: 'info',
+              title: 'Gagal Menyalin Otomatis',
+              text: 'Perizinan clipboard tidak tersedia di peramban.',
+            });
+          }
+        } else if (result.isDenied) {
+          // Toggle arsip dari modal
+          if (archiveBtn) archiveBtn.click();
+        }
+      });
+    };
+
+    if (detailBtn) {
+      detailBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDetailModal();
+      });
+    }
+
+    if (cardBody) {
+      cardBody.addEventListener('click', () => {
+        openDetailModal();
+      });
+    }
+
+    if (cardHeader) {
+      cardHeader.addEventListener('click', () => {
+        openDetailModal();
+      });
+    }
+
+    // Handler Tombol Hapus
     if (deleteBtn) {
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const title = this.getAttribute('title') || 'catatan ini';
+        const rawTitle = this.getAttribute('title') || 'catatan ini';
+        const { cleanTitle } = this._parseFolder(rawTitle);
 
         const result = await Swal.fire({
           title: 'Hapus Catatan?',
-          html: `Apakah Anda yakin ingin menghapus catatan <strong>"${this._escapeHtml(title)}"</strong>? Tindakan ini tidak dapat dibatalkan.`,
+          html: `Apakah Anda yakin ingin menghapus catatan <strong>"${this._escapeHtml(cleanTitle)}"</strong>? Tindakan ini tidak dapat dibatalkan.`,
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonColor: '#0f172a',
+          confirmButtonColor: '#ef4444',
           cancelButtonColor: '#94a3b8',
           confirmButtonText: 'Ya, Hapus!',
           cancelButtonText: 'Batal',
@@ -250,6 +372,7 @@ class NoteItem extends HTMLElement {
       });
     }
 
+    // Handler Tombol Arsip
     if (archiveBtn) {
       archiveBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
